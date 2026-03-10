@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imperator Forum</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+body{font-family:Poppins,Arial;margin:0;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;color:#222}
+header{color:white;text-align:center;padding:25px}
+.container{max-width:900px;margin:auto;padding:20px}
+.card{background:white;border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 10px 25px rgba(0,0,0,0.15)}
+button{background:#667eea;color:white;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;margin:5px}
+button:hover{opacity:0.9}
+input,textarea{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:1px solid #ccc}
+nav{text-align:center;margin-bottom:15px}
+.post{border-bottom:1px solid #eee;padding:10px 0}
+.username{font-weight:600;color:#667eea}
+#meme img{max-width:100%;border-radius:12px}
+.hidden{display:none}
+.gameBtn{font-size:18px;padding:20px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🌍 Imperator Forum</h1>
+<p id="aiGreeting"></p>
+</header>
+
+<div class="container">
+
+<div id="auth" class="card">
+<h2>Account maken / Inloggen</h2>
+<input id="username" placeholder="Username">
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<br><br>
+<button onclick="register()">Account maken</button>
+<button onclick="login()">Login</button>
+</div>
+
+<div id="forumSection" class="hidden">
+
+<nav>
+<button onclick="showForum()">💬 Forum</button>
+<button onclick="showMemes()">🎲 Memes</button>
+<button onclick="showGames()">🎮 Games</button>
+<button onclick="logout()">Logout</button>
+</nav>
+
+<div id="forumPage">
+
+<div class="card">
+<h2>Nieuw bericht</h2>
+<textarea id="postText" placeholder="Schrijf iets..."></textarea>
+<br><br>
+<button onclick="addPost()">Plaats bericht</button>
+</div>
+
+<div class="card">
+<h2>Forum</h2>
+<div id="posts"></div>
+</div>
+
+</div>
+
+<div id="memePage" class="hidden card">
+<h2>Random Meme</h2>
+<button onclick="randomMeme()">Nieuwe meme</button>
+<div id="memeContainer"></div>
+</div>
+
+<div id="gamesPage" class="hidden">
+
+<div class="card">
+<h2>⚡ Klik Game</h2>
+<p>Klik zo snel mogelijk!</p>
+<button class="gameBtn" onclick="clickGame()">CLICK</button>
+<p>Score: <span id="clickScore">0</span></p>
+</div>
+
+<div class="card">
+<h2>🔢 Raad het getal</h2>
+<p>Raad een nummer tussen 1 en 100</p>
+<input id="guessInput" type="number">
+<button onclick="guessNumber()">Raad</button>
+<p id="guessResult"></p>
+</div>
+
+<div class="card">
+<h2>🤖 AI Chaos Knop</h2>
+<p>Laat de AI random dingen posten.</p>
+<button onclick="chaosPost()">Activeer chaos</button>
+</div>
+
+</div>
+
+</div>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const firebaseConfig={
+apiKey:"PASTE_API_KEY",
+authDomain:"PASTE_AUTH_DOMAIN",
+projectId:"PASTE_PROJECT_ID"
+};
+
+const app=initializeApp(firebaseConfig);
+const auth=getAuth();
+const db=getFirestore();
+
+let currentUsername="";
+
+window.register=async function(){
+const email=document.getElementById('email').value;
+const password=document.getElementById('password').value;
+currentUsername=document.getElementById('username').value;
+await createUserWithEmailAndPassword(auth,email,password);
+startForum();
+}
+
+window.login=async function(){
+const email=document.getElementById('email').value;
+const password=document.getElementById('password').value;
+currentUsername=document.getElementById('username').value;
+await signInWithEmailAndPassword(auth,email,password);
+startForum();
+}
+
+window.logout=function(){
+signOut(auth);
+location.reload();
+}
+
+function startForum(){
+document.getElementById('auth').classList.add('hidden');
+document.getElementById('forumSection').classList.remove('hidden');
+listenPosts();
+aiBot();
+}
+
+window.addPost=async function(){
+const text=document.getElementById('postText').value;
+if(!text) return;
+
+await addDoc(collection(db,"posts"),{
+user:currentUsername,
+text:text,
+time:serverTimestamp()
+});
+
+document.getElementById('postText').value="";
+}
+
+function listenPosts(){
+const q=query(collection(db,"posts"),orderBy("time","desc"));
+
+onSnapshot(q,snap=>{
+const container=document.getElementById('posts');
+container.innerHTML="";
+
+snap.forEach(doc=>{
+const p=doc.data();
+const div=document.createElement('div');
+div.className="post";
+div.innerHTML=`<span class="username">${p.user}</span>: ${p.text}`;
+container.appendChild(div);
+});
+});
+}
+
+window.randomMeme=async function(){
+const res=await fetch("https://meme-api.com/gimme");
+const data=await res.json();
+
+const container=document.getElementById('memeContainer');
+container.innerHTML=`<h3>${data.title}</h3><img src="${data.url}">`;
+}
+
+function aiBot(){
+setInterval(async()=>{
+
+if(Math.random()<0.25){
+
+const emojis=["😂","🔥","👀","🤖","😎","💀","✨"];
+function rand(arr){return arr[Math.floor(Math.random()*arr.length)]}
+
+const text=`hallo wannes ${rand(emojis)}${rand(emojis)}!!!???`;
+
+await addDoc(collection(db,"posts"),{
+user:"AI_BOT",
+text:text,
+time:serverTimestamp()
+});
+
+}
+
+},20000);
+
+const greetings=[
+"Welkom op het forum 👑",
+"De AI kijkt mee 👀",
+"hallo wannes 😂",
+"Vandaag gaat chaos worden 🔥"
+];
+
+document.getElementById("aiGreeting").textContent=greetings[Math.floor(Math.random()*greetings.length)];
+}
+
+window.showForum=function(){
+document.getElementById('forumPage').classList.remove('hidden');
+document.getElementById('memePage').classList.add('hidden');
+document.getElementById('gamesPage').classList.add('hidden');
+}
+
+window.showMemes=function(){
+document.getElementById('forumPage').classList.add('hidden');
+document.getElementById('memePage').classList.remove('hidden');
+document.getElementById('gamesPage').classList.add('hidden');
+}
+
+window.showGames=function(){
+document.getElementById('forumPage').classList.add('hidden');
+document.getElementById('memePage').classList.add('hidden');
+document.getElementById('gamesPage').classList.remove('hidden');
+}
+
+let clickScore=0;
+window.clickGame=function(){
+clickScore++;
+document.getElementById("clickScore").textContent=clickScore;
+}
+
+const secretNumber=Math.floor(Math.random()*100)+1;
+
+window.guessNumber=function(){
+const guess=parseInt(document.getElementById("guessInput").value);
+const result=document.getElementById("guessResult");
+
+if(guess===secretNumber) result.textContent="🎉 Correct!";
+else if(guess>secretNumber) result.textContent="Te hoog";
+else result.textContent="Te laag";
+}
+
+window.chaosPost=async function(){
+const chaos=[
+"hallo wannes ??? 😂🔥",
+"dit forum is chaos 🤖",
+"wie speelt games 👀",
+"random moment 💀",
+"imperator mode geactiveerd 👑"
+];
+
+const text=chaos[Math.floor(Math.random()*chaos.length)];
+
+await addDoc(collection(db,"posts"),{
+user:"CHAOS_AI",
+text:text,
+time:serverTimestamp()
+});
+}
+
+</script>
+
+</body>
+</html>
